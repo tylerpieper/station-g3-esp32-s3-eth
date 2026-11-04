@@ -1,0 +1,6 @@
+ad53dce3fdbacba3e6bc4e6503868f58a74b1965df355e5ee156ce3db5ae3a6a  firmware-station-g3-waveshare-eth-2.8.2.d5f1619.bin
+b90a21cf32315545149bf63bff0d8cc996a50a363d13b72a9bdc6dbd375fdbff  firmware-station-g3-waveshare-eth-2.8.2.d5f1619.factory.bin
+33107b50906ea98f33a4180a0cb32441c7c8aa77049021165e8ac3a9a2e2fc0c  firmware-station-g3-waveshare-eth-2.8.2.d5f1619.full.bin
+413b4acb6c989a9bb8ed71afc7c6fe57a3ce0ad5523e756ab80475ea821e2415  littlefs-station-g3-waveshare-eth-2.8.2.d5f1619.bin
+fc86d0b910519d7de22df58321363a5e9105372892b03da91190269772a31d83  mt-esp32s3-ota.bin
+7f5edaee456ddb21b14b88e43cffc1b742ef5139518782b6e13eb8af37803ca4  firmware-station-g3-waveshare-eth-2.8.2.d5f1619.mt.json

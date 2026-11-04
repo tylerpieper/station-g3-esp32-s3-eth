@@ -104,10 +104,21 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
+      - name: Cache PlatformIO downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio/.cache
+          key: pio-cache-${{ runner.os }}-${{ hashFiles('variants/**/platformio.ini', 'firmware/platformio.ini') }}
+          restore-keys: |
+            pio-cache-${{ runner.os }}-
+
       - name: Install PlatformIO and esptool
         run: |
           python3 -m pip install --upgrade pip
-          pip install -U platformio esptool pyyaml
+          if [ -f "firmware/.github/actions/setup-base/requirements.txt" ]; then
+            pip install -r firmware/.github/actions/setup-base/requirements.txt
+          fi
+          pip install "platformio==6.2.0" esptool pyyaml
 
       - name: Overlay custom variant
         if: matrix.is_custom_variant
@@ -418,13 +429,13 @@ jobs:
           pip install pyyaml
 
       - name: Download all compiled artifacts
-        if: needs.plan.outputs.has_builds == 'true'
+        if: needs.plan.outputs.has_builds == 'true' && needs.compile.result == 'success'
         uses: actions/download-artifact@v4
         with:
           path: downloaded-artifacts
 
       - name: Publish GitHub Releases and move artifacts to output tree
-        if: needs.plan.outputs.has_builds == 'true'
+        if: needs.plan.outputs.has_builds == 'true' && needs.compile.result == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -521,3 +532,4 @@ jobs:
             git commit -m "Automated build & prune: Station G3 ESP32-S3-ETH firmware [skip ci]"
             git pull --rebase origin main
             git push origin main
+          fi

@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Temporary CI / Build directories
+downloaded-artifacts/
+artifact_output/
+overlay/
+firmware/
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Editor / OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

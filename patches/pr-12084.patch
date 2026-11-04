@@ -1,0 +1,143 @@
+﻿From d24935c9935fe6b5fb1917df335aaa0f06f4379e Mon Sep 17 00:00:00 2001
+From: tylerpieper <tylerpieper@gmail.com>
+Date: Mon, 5 Oct 2026 10:58:56 -0700
+Subject: [PATCH] feat(station-g3): add software control for LNA via FEM
+ interface
+
+---
+ src/mesh/LoRaFEMInterface.cpp              | 23 ++++++++++++++++++++++
+ src/mesh/LoRaFEMInterface.h                |  2 +-
+ variants/esp32s3/station-g3/platformio.ini |  2 ++
+ variants/esp32s3/station-g3/variant.h      |  4 ++++
+ 4 files changed, 30 insertions(+), 1 deletion(-)
+
+diff --git a/src/mesh/LoRaFEMInterface.cpp b/src/mesh/LoRaFEMInterface.cpp
+index 5691a856948..cb5307bfd21 100644
+--- a/src/mesh/LoRaFEMInterface.cpp
++++ b/src/mesh/LoRaFEMInterface.cpp
+@@ -11,11 +11,13 @@ LoRaFEMInterface loraFEMInterface;
+ 
+ static void enableFEMPower()
+ {
++#if defined(LORA_PA_POWER)
+     bool wasOff = digitalRead(LORA_PA_POWER) != HIGH;
+     digitalWrite(LORA_PA_POWER, HIGH);
+     if (wasOff) {
+         delay(5); // This is an arbitrary 5ms for FEM rail power-up.
+     }
++#endif
+ }
+ 
+ #if defined(ARCH_ESP32)
+@@ -40,7 +42,9 @@ static void releasePinHold(int pin)
+ 
+ static void releaseSleepHolds()
+ {
++#if defined(LORA_PA_POWER)
+     releasePinHold(LORA_PA_POWER);
++#endif
+ #ifdef HELTEC_V4
+     releasePinHold(LORA_KCT8103L_PA_CSD);
+     releasePinHold(LORA_KCT8103L_PA_CTX);
+@@ -50,6 +54,8 @@ static void releaseSleepHolds()
+ #elif defined(USE_KCT8103L_PA)
+     releasePinHold(LORA_KCT8103L_PA_CSD);
+     releasePinHold(LORA_KCT8103L_PA_CTX);
++#elif defined(USE_STATION_G3_FEM)
++    releasePinHold(LORA_STATION_G3_LNA_EN);
+ #endif
+ }
+ #endif
+@@ -131,6 +137,12 @@ void LoRaFEMInterface::init(void)
+     delay(1);
+     pinMode(LORA_KCT8103L_TX_RX, OUTPUT);
+     digitalWrite(LORA_KCT8103L_TX_RX, LOW);
++#elif defined(USE_STATION_G3_FEM)
++    fem_type = STATION_G3_FEM;
++    LOG_INFO("Using Station G3 LoRa FEM");
++    pinMode(LORA_STATION_G3_LNA_EN, OUTPUT);
++    digitalWrite(LORA_STATION_G3_LNA_EN, LOW); // LNA enabled by default (Active LOW)
++    setLnaCanControl(true);
+ #endif
+ }
+ 
+@@ -163,6 +175,8 @@ void LoRaFEMInterface::setSleepModeEnable(void)
+ #elif defined(USE_KCT8103L_PA_ONLY)
+     // shutdown the PA
+     digitalWrite(LORA_KCT8103L_EN, LOW);
++#elif defined(USE_STATION_G3_FEM)
++    digitalWrite(LORA_STATION_G3_LNA_EN, HIGH);
+ #endif
+ }
+ 
+@@ -191,6 +205,8 @@ void LoRaFEMInterface::setTxModeEnable(void)
+ #elif defined(USE_KCT8103L_PA_ONLY)
+     enableFEMPower();
+     digitalWrite(LORA_KCT8103L_TX_RX, HIGH);
++#elif defined(USE_STATION_G3_FEM)
++    digitalWrite(LORA_STATION_G3_LNA_EN, HIGH);
+ #endif
+ }
+ 
+@@ -227,6 +243,8 @@ void LoRaFEMInterface::setRxModeEnable(void)
+ #elif defined(USE_KCT8103L_PA_ONLY)
+     enableFEMPower();
+     digitalWrite(LORA_KCT8103L_TX_RX, LOW);
++#elif defined(USE_STATION_G3_FEM)
++    digitalWrite(LORA_STATION_G3_LNA_EN, lna_enabled ? LOW : HIGH);
+ #endif
+ }
+ 
+@@ -271,6 +289,11 @@ void LoRaFEMInterface::setRxModeEnableWhenMCUSleep(void)
+ #elif defined(USE_KCT8103L_PA_ONLY)
+     enableFEMPower();
+     digitalWrite(LORA_KCT8103L_TX_RX, LOW);
++#elif defined(USE_STATION_G3_FEM)
++    digitalWrite(LORA_STATION_G3_LNA_EN, lna_enabled ? LOW : HIGH);
++#if defined(ARCH_ESP32)
++    rtc_gpio_hold_en((gpio_num_t)LORA_STATION_G3_LNA_EN);
++#endif
+ #endif
+ }
+ 
+diff --git a/src/mesh/LoRaFEMInterface.h b/src/mesh/LoRaFEMInterface.h
+index f524f51d7a4..12bd83a0b2e 100644
+--- a/src/mesh/LoRaFEMInterface.h
++++ b/src/mesh/LoRaFEMInterface.h
+@@ -3,7 +3,7 @@
+ #include "configuration.h"
+ #include <stdint.h>
+ 
+-typedef enum { GC1109_PA, KCT8103L_PA, OTHER_FEM_TYPES } LoRaFEMType;
++typedef enum { GC1109_PA, KCT8103L_PA, STATION_G3_FEM, OTHER_FEM_TYPES } LoRaFEMType;
+ 
+ class LoRaFEMInterface
+ {
+diff --git a/variants/esp32s3/station-g3/platformio.ini b/variants/esp32s3/station-g3/platformio.ini
+index f09da13bc57..f02ae63be2c 100644
+--- a/variants/esp32s3/station-g3/platformio.ini
++++ b/variants/esp32s3/station-g3/platformio.ini
+@@ -24,6 +24,8 @@ build_unflags =
+ build_flags =
+   ${esp32s3_base.build_flags}
+   -D STATION_G3
++  -D HAS_LORA_FEM=1
++  -D USE_STATION_G3_FEM=1
+   -I variants/esp32s3/station-g3
+   -I variants/esp32s3/station-common
+   -DBOARD_HAS_PSRAM
+diff --git a/variants/esp32s3/station-g3/variant.h b/variants/esp32s3/station-g3/variant.h
+index 98441ea99af..3c273f82a40 100644
+--- a/variants/esp32s3/station-g3/variant.h
++++ b/variants/esp32s3/station-g3/variant.h
+@@ -8,6 +8,10 @@
+ #define SX126X_MAX_POWER 19
+ #endif
+ 
++// Primary Slot LNA Mode: LOW/open is LNA on, HIGH/short is LNA off.
++// Requires Jumper LNA P to be removed.
++#define LORA_STATION_G3_LNA_EN 10
++
+ /*
+ #define BATTERY_PIN 4 // A battery voltage measurement pin, voltage divider connected here to measure battery voltage
+ #define ADC_CHANNEL ADC1_GPIO4_CHANNEL

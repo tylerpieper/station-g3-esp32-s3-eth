@@ -1,0 +1,133 @@
+diff --git a/protobufs b/protobufs
+index 6b1ded439..8d0ed0c13 160000
+--- a/protobufs
++++ b/protobufs
+@@ -1 +1 @@
+-Subproject commit 6b1ded439633cd03d4af85b44231b91d1d106278
++Subproject commit 8d0ed0c135f91ad1d6f9c60bc341277d64946bce
+diff --git a/src/modules/DMRelayModule.cpp b/src/modules/DMRelayModule.cpp
+new file mode 100644
+index 000000000..1cd79b2d9
+--- /dev/null
++++ b/src/modules/DMRelayModule.cpp
+@@ -0,0 +1,75 @@
++#if ENABLE_DM_RELAY
++
++#include "DMRelayModule.h"
++#include "MeshService.h"
++#include "NodeDB.h"
++#include "Router.h"
++
++#ifndef DM_RELAY_HOP_LIMIT
++#define DM_RELAY_HOP_LIMIT 2
++#endif
++
++#ifndef DM_RELAY_CHANNEL
++#define DM_RELAY_CHANNEL 0
++#endif
++
++DMRelayModule *dmRelayModule;
++
++DMRelayModule::DMRelayModule() : SinglePortModule("dm_relay", meshtastic_PortNum_TEXT_MESSAGE_APP)
++{
++}
++
++ProcessMessage DMRelayModule::handleReceived(const meshtastic_MeshPacket &mp) {
++    auto &p = mp.decoded;
++
++    // Filter by Type: Only process TXT messages (SinglePortModule already filters this, but just to be sure)
++    if (p.portnum != meshtastic_PortNum_TEXT_MESSAGE_APP) {
++        return ProcessMessage::CONTINUE;
++    }
++
++    // Verify DM Status: Intended for this specific node
++    if (mp.to != nodeDB->getNodeNum()) {
++        return ProcessMessage::CONTINUE;
++    }
++
++    // Guard against broadcast or zero sender
++    if (mp.from == 0 || mp.from == NODENUM_BROADCAST) {
++        return ProcessMessage::CONTINUE;
++    }
++
++    // Verify Favorite Status
++    if (nodeDB->isFavorite(mp.from)) {
++        LOG_INFO("DMRelay: DM from favorited node 0x%08x -> Rebroadcasting to channel %d (%d hops)",
++                 mp.from, DM_RELAY_CHANNEL, DM_RELAY_HOP_LIMIT);
++
++        // Create a new meshtastic_MeshPacket
++        meshtastic_MeshPacket *rebroadcast = allocDataPacket();
++        if (!rebroadcast) {
++            LOG_WARN("DMRelay: Failed to allocate packet for rebroadcast");
++            return ProcessMessage::CONTINUE;
++        }
++
++        // Set the destination to NODENUM_BROADCAST
++        rebroadcast->to = NODENUM_BROADCAST;
++        // Set channel to the configured build channel
++        rebroadcast->channel = DM_RELAY_CHANNEL;
++        // Set hop_limit to the configured build limit
++        rebroadcast->hop_limit = DM_RELAY_HOP_LIMIT;
++        rebroadcast->hop_start = DM_RELAY_HOP_LIMIT;
++        rebroadcast->want_ack = false;
++
++        // Copy text payload safely
++        rebroadcast->decoded.portnum = meshtastic_PortNum_TEXT_MESSAGE_APP;
++        size_t copy_size = std::min((size_t)p.payload.size, sizeof(rebroadcast->decoded.payload.bytes));
++        rebroadcast->decoded.payload.size = copy_size;
++        memcpy(rebroadcast->decoded.payload.bytes, p.payload.bytes, copy_size);
++
++        // Inject packet into mesh
++        service->sendToMesh(rebroadcast, RX_SRC_LOCAL);
++    }
++
++    // Return State: Return CONTINUE so that the original DM displays normally on local interface
++    return ProcessMessage::CONTINUE;
++}
++
++#endif
+\ No newline at end of file
+diff --git a/src/modules/DMRelayModule.h b/src/modules/DMRelayModule.h
+new file mode 100644
+index 000000000..0b3a93cb0
+--- /dev/null
++++ b/src/modules/DMRelayModule.h
+@@ -0,0 +1,13 @@
++#pragma once
++
++#include "SinglePortModule.h"
++
++class DMRelayModule : public SinglePortModule {
++  public:
++    DMRelayModule();
++
++  protected:
++    virtual ProcessMessage handleReceived(const meshtastic_MeshPacket &mp) override;
++};
++
++extern DMRelayModule *dmRelayModule;
+\ No newline at end of file
+diff --git a/src/modules/Modules.cpp b/src/modules/Modules.cpp
+index 64e90c9c2..30c054967 100644
+--- a/src/modules/Modules.cpp
++++ b/src/modules/Modules.cpp
+@@ -4,6 +4,9 @@
+ #include "modules/SystemCommandsModule.h"
+ #endif
+ #include "modules/StatusLEDModule.h"
++#if ENABLE_DM_RELAY
++#include "DMRelayModule.h"
++#endif
+ #if !MESHTASTIC_EXCLUDE_REPLYBOT
+ #include "ReplyBotModule.h"
+ #endif
+@@ -117,6 +120,9 @@ void setupModules()
+     }
+ #endif
+     statusLEDModule = new StatusLEDModule();
++#if ENABLE_DM_RELAY
++    dmRelayModule = new DMRelayModule();
++#endif
+ #if !MESHTASTIC_EXCLUDE_REPLYBOT
+     new ReplyBotModule();
+ #endif

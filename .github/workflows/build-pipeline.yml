@@ -1,0 +1,523 @@
+name: Station G3 ESP32-S3-ETH Firmware Build & Release Pipeline
+
+on:
+  schedule:
+    # Poll upstream Meshtastic releases every 6 hours
+    - cron: '0 */6 * * *'
+  push:
+    branches:
+      - main
+    paths:
+      - 'build-config.yaml'
+      - 'variants/**'
+      - 'patches/**'
+      - 'scripts/**'
+      - '.github/workflows/build-pipeline.yml'
+  workflow_dispatch:
+    inputs:
+      force_tag:
+        description: 'Optional: Explicit upstream tag to build (e.g. v2.8.2.4c89b69)'
+        required: false
+        default: ''
+        type: string
+      force_rebuild:
+        description: 'Force rebuild and update release even if target already exists in ./builds/'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: station-g3-eth-build-pipeline
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Plan Build Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      has_builds: ${{ steps.resolver.outputs.has_builds }}
+      matrix: ${{ steps.resolver.outputs.matrix }}
+      active_folders: ${{ steps.resolver.outputs.active_folders }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: Resolve active releases and generate build matrix
+        id: resolver
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ARGS="--config build-config.yaml"
+          if [ -n "${{ inputs.force_tag }}" ]; then
+            ARGS="$ARGS --force-tag ${{ inputs.force_tag }}"
+          fi
+          if [ "${{ inputs.force_rebuild }}" = "true" ]; then
+            ARGS="$ARGS --force-rebuild"
+          fi
+          python3 scripts/resolve_matrix.py $ARGS
+
+  compile:
+    name: Compile ${{ matrix.variant_name }} (${{ matrix.build_type }} @ ${{ matrix.tag }})
+    needs: plan
+    if: needs.plan.outputs.has_builds == 'true'
+    runs-on: ubuntu-latest
+    env:
+      PLATFORMIO_SETTING_ENABLE_TELEMETRY: '0'
+      PLATFORMIO_SETTING_CHECK_PLATFORMIO_INTERVAL: '3650'
+      PLATFORMIO_SETTING_CHECK_PRUNE_SYSTEM_THRESHOLD: '10240'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    steps:
+      - name: Checkout custom overlay repository
+        uses: actions/checkout@v4
+        with:
+          path: overlay
+
+      - name: Checkout meshtastic/firmware upstream
+        uses: actions/checkout@v4
+        with:
+          repository: meshtastic/firmware
+          ref: ${{ matrix.tag }}
+          submodules: recursive
+          path: firmware
+
+      - name: Set up Python & PlatformIO
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install PlatformIO and esptool
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install -U platformio esptool pyyaml
+
+      - name: Overlay custom variant
+        if: matrix.is_custom_variant
+        run: |
+          if [ -n "${{ matrix.variant_dir }}" ] && [ -d "overlay/variants/${{ matrix.variant_dir }}" ]; then
+            echo "Overlaying custom variant ${{ matrix.variant_dir }} into firmware/variants/${{ matrix.variant_dir }}..."
+            mkdir -p "firmware/variants/${{ matrix.variant_dir }}"
+            cp -rf "overlay/variants/${{ matrix.variant_dir }}/." "firmware/variants/${{ matrix.variant_dir }}/"
+            rm -f "firmware/variants/${{ matrix.variant_dir }}/.gitkeep" || true
+          fi
+
+      - name: Apply upstream pull requests
+        if: matrix.upstream_prs != ''
+        working-directory: firmware
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          for pr in ${{ matrix.upstream_prs }}; do
+            echo "Fetching and applying upstream PR #${pr}..."
+            if [ -f "../overlay/patches/pr-${pr}.patch" ]; then
+              echo "Found pre-adapted local patch for PR #${pr}, applying..."
+              git apply --ignore-whitespace --whitespace=fix "../overlay/patches/pr-${pr}.patch"
+            else
+              gh api "repos/meshtastic/firmware/pulls/${pr}" -H "Accept: application/vnd.github.v3.diff" | git apply --ignore-whitespace --whitespace=fix
+            fi
+          done
+
+      - name: Apply local patches
+        if: matrix.local_patches != ''
+        working-directory: firmware
+        run: |
+          for patch in ${{ matrix.local_patches }}; do
+            echo "Applying local patch ${patch}..."
+            git apply --ignore-whitespace --whitespace=fix "../overlay/patches/${patch}"
+          done
+
+      - name: Build firmware target with PlatformIO
+        working-directory: firmware
+        env:
+          PLATFORMIO_BUILD_FLAGS: ${{ matrix.build_flags }}
+        run: |
+          pio run -e ${{ matrix.pio_env }} -t mtjson
+
+      - name: Collect artifacts, integrate Ethernet OTA partition, and package release bundle
+        run: |
+          mkdir -p artifact_output
+
+          # Collect firmware binaries, manifests, and filesystem images
+          SEARCH_DIRS="firmware/.pio/build/${{ matrix.pio_env }} firmware/release"
+          for sdir in $SEARCH_DIRS; do
+            if [ -d "$sdir" ]; then
+              find "$sdir" -maxdepth 2 -type f \( \
+                -name "firmware*.bin" -o \
+                -name "firmware*.factory.bin" -o \
+                -name "firmware*.mt.json" -o \
+                -name "littlefs*.bin" -o \
+                -name "spiffs*.bin" \
+              \) -exec cp -f {} artifact_output/ \;
+            fi
+          done
+
+          # Copy flashing scripts from firmware/bin
+          cp -f firmware/bin/device-install.* artifact_output/ 2>/dev/null || true
+          cp -f firmware/bin/device-update.* artifact_output/ 2>/dev/null || true
+          chmod +x artifact_output/device-install.sh artifact_output/device-update.sh 2>/dev/null || true
+
+          # Fetch latest Ethernet + BLE OTA partition binary from tylerpieper/meshtastic-esp32-ethernet-ota
+          ETH_OTA_URL="https://github.com/tylerpieper/meshtastic-esp32-ethernet-ota/releases/latest/download/mt-station-g3-waveshare-eth-ota.bin"
+          echo "Fetching latest Ethernet OTA bootloader from ${ETH_OTA_URL}..."
+          if curl -fL -sS -o artifact_output/mt-esp32s3-ota.bin "$ETH_OTA_URL"; then
+            echo "Successfully downloaded latest mt-station-g3-waveshare-eth-ota.bin ($(wc -c < artifact_output/mt-esp32s3-ota.bin) bytes)."
+          elif [ -f "overlay/variants/${{ matrix.variant_dir }}/mt-esp32s3-ota.bin" ]; then
+            echo "Falling back to repository-bundled mt-esp32s3-ota.bin..."
+            cp -f "overlay/variants/${{ matrix.variant_dir }}/mt-esp32s3-ota.bin" artifact_output/mt-esp32s3-ota.bin
+          else
+            echo "::error::Could not obtain mt-esp32s3-ota.bin from release or overlay!"
+            exit 1
+          fi
+
+          # Update firmware-*.mt.json with the Ethernet OTA partition (app1 @ 0x650000)
+          python3 -c "
+          import json, os, hashlib
+
+          ota_dst = os.path.join('artifact_output', 'mt-esp32s3-ota.bin')
+          with open(ota_dst, 'rb') as f:
+              ota_data = f.read()
+          md5 = hashlib.md5(ota_data).hexdigest()
+          ota_bytes = len(ota_data)
+
+          manifest_files = [f for f in os.listdir('artifact_output') if f.startswith('firmware-') and f.endswith('.mt.json')]
+          for mf_name in manifest_files:
+              mf_path = os.path.join('artifact_output', mf_name)
+              with open(mf_path, 'r', encoding='utf-8') as f:
+                  manifest = json.load(f)
+              files_list = manifest.setdefault('files', [])
+              files_list = [e for e in files_list if e.get('name') != 'mt-esp32s3-ota.bin' and e.get('part_name') != 'app1']
+              files_list.append({
+                  'name': 'mt-esp32s3-ota.bin',
+                  'md5': md5,
+                  'bytes': ota_bytes,
+                  'part_name': 'app1'
+              })
+              manifest['files'] = files_list
+              with open(mf_path, 'w', encoding='utf-8') as f:
+                  json.dump(manifest, f, indent=2)
+              print(f'Updated {mf_name} with Ethernet OTA mt-esp32s3-ota.bin (md5={md5}, bytes={ota_bytes})')
+          "
+
+          # Build a single merged full-partition image (.full.bin) containing:
+          # - 0x0000   : bootloader + partitions + boot_app0 + app0 (from .factory.bin)
+          # - 0x650000 : app1 (mt-esp32s3-ota.bin from meshtastic-esp32-ethernet-ota)
+          # - 0xc90000 : spiffs (littlefs-*.bin)
+          FACTORY_BIN=$(find artifact_output -maxdepth 1 -name "firmware-*.factory.bin" -printf "%f\n" | head -n 1)
+          LITTLEFS_BIN=$(find artifact_output -maxdepth 1 -name "littlefs-*.bin" -printf "%f\n" | head -n 1)
+          if [ -n "$FACTORY_BIN" ] && [ -n "$LITTLEFS_BIN" ]; then
+            FULL_BIN="${FACTORY_BIN%.factory.bin}.full.bin"
+            echo "Generating complete 16MB partition image: ${FULL_BIN}..."
+            python3 -m esptool --chip esp32s3 merge-bin \
+              -o "artifact_output/${FULL_BIN}" \
+              --flash-mode dio \
+              --flash-freq 80m \
+              --flash-size 16MB \
+              0x0000 "artifact_output/${FACTORY_BIN}" \
+              0x650000 "artifact_output/mt-esp32s3-ota.bin" \
+              0xc90000 "artifact_output/${LITTLEFS_BIN}" || \
+            python3 -m esptool --chip esp32s3 merge_bin \
+              -o "artifact_output/${FULL_BIN}" \
+              --flash_mode dio \
+              --flash_freq 80m \
+              --flash_size 16MB \
+              0x0000 "artifact_output/${FACTORY_BIN}" \
+              0x650000 "artifact_output/mt-esp32s3-ota.bin" \
+              0xc90000 "artifact_output/${LITTLEFS_BIN}"
+          fi
+
+          # Generate FLASHING.md instructions inside the package
+          VER_STRIPPED="${{ matrix.tag }}"
+          VER_STRIPPED="${VER_STRIPPED#v}"
+          cat << EOF > artifact_output/FLASHING.md
+          # Flashing Guide: Station G3 (Waveshare ESP32-S3-ETH) — ${{ matrix.tag }}
+
+          This package includes the complete 16 MB partition layout for the **Station G3 + Waveshare ESP32-S3-ETH Interposer**, including the custom **W5500 Wired Ethernet + BLE OTA Bootloader** (\`mt-esp32s3-ota.bin\` at \`app1\` / \`0x650000\`).
+
+          ---
+
+          ## 16 MB Flash Partition Layout (\`default_16MB.csv\`)
+
+          | Partition | Offset | Size | Binary File | Description |
+          | :--- | :--- | :--- | :--- | :--- |
+          | \`bootloader\` / \`partitions\` / \`boot_app0\` / \`app0\` | \`0x000000\` | \`~2.4 MB\` | \`firmware-station-g3-waveshare-eth-${VER_STRIPPED}.factory.bin\` | Bootloader, Partition Table, and Primary Meshtastic Firmware (\`app0\` @ \`0x010000\`) |
+          | \`app1\` (\`ota_1\`) | \`0x650000\` | \`6.25 MB\` | \`mt-esp32s3-ota.bin\` | Dedicated **W5500 Ethernet + BLE Unified OTA Bootloader** |
+          | \`spiffs\` | \`0xC90000\` | \`3.375 MB\` | \`littlefs-station-g3-waveshare-eth-${VER_STRIPPED}.bin\` | LittleFS Web UI & Filesystem |
+          | **Combined Full Image** | \`0x000000\` | \`~16 MB\` | \`firmware-station-g3-waveshare-eth-${VER_STRIPPED}.full.bin\` | All-in-one merged image (\`0x0\` + \`0x650000\` + \`0xC90000\`) |
+
+          ---
+
+          ## Option A: Automated Full Flash via Script (Recommended for Initial Install)
+
+          Flashes \`factory.bin\` (\`0x0\`), \`mt-esp32s3-ota.bin\` (\`0x650000\`), and \`littlefs.bin\` (\`0xC90000\`) automatically.
+
+          ### Prerequisites
+          * Python 3 with \`esptool\` installed (\`pip install esptool\`)
+          * Put the Waveshare ESP32-S3-ETH into USB bootloader mode (hold **BOOT**, tap **RESET**, release **BOOT**).
+
+          ### Linux / macOS
+          \`\`\`bash
+          ./device-install.sh -p /dev/ttyACM0 -f firmware-station-g3-waveshare-eth-${VER_STRIPPED}.factory.bin
+          \`\`\`
+
+          ### Windows (PowerShell / CMD)
+          \`\`\`powershell
+          .\device-install.bat -p COM3 -f firmware-station-g3-waveshare-eth-${VER_STRIPPED}.factory.bin
+          \`\`\`
+
+          ---
+
+          ## Option B: Single-File Full Flash (Web Flasher or \`esptool\` All-in-One)
+
+          If using a single-file flasher (such as ESP Web Tools, Espressif Flash Download Tool, or single-command \`esptool\`), flash the \`.full.bin\` image at offset \`0x0\`:
+
+          \`\`\`bash
+          python -m esptool --chip esp32s3 --port <PORT> erase-flash
+          python -m esptool --chip esp32s3 --port <PORT> write-flash 0x0 firmware-station-g3-waveshare-eth-${VER_STRIPPED}.full.bin
+          \`\`\`
+
+          ---
+
+          ## Option C: Manual Multi-Partition Flash (\`esptool\`)
+
+          \`\`\`bash
+          python -m esptool --chip esp32s3 --port <PORT> erase-flash
+          python -m esptool --chip esp32s3 --port <PORT> write-flash \\
+            0x000000 firmware-station-g3-waveshare-eth-${VER_STRIPPED}.factory.bin \\
+            0x650000 mt-esp32s3-ota.bin \\
+            0xC90000 littlefs-station-g3-waveshare-eth-${VER_STRIPPED}.bin
+          \`\`\`
+
+          ---
+
+          ## Option D: Wired Ethernet OTA Update (No USB Required)
+
+          Once the device has been flashed with this setup (which installs \`mt-esp32s3-ota.bin\` in \`app1\`), future updates can be performed directly over **Wired Ethernet (TCP port 3232)** for both **DHCP** and **Static IP** configurations:
+
+          \`\`\`bash
+          # Using Meshtastic Python CLI (>= 2.5+):
+          meshtastic --host <DEVICE_IP> --ota-update firmware-station-g3-waveshare-eth-${VER_STRIPPED}.bin
+          \`\`\`
+
+          ---
+
+          ## Option E: USB Firmware Update (Preserves Settings)
+
+          To update only the \`app0\` firmware (\`0x10000\`) over USB without erasing NVS configuration or LittleFS:
+
+          \`\`\`bash
+          # Linux / macOS:
+          ./device-update.sh -p /dev/ttyACM0 -f firmware-station-g3-waveshare-eth-${VER_STRIPPED}.bin
+
+          # Windows:
+          .\device-update.bat -p COM3 -f firmware-station-g3-waveshare-eth-${VER_STRIPPED}.bin
+          \`\`\`
+          EOF
+
+          # Generate SHA-256 checksums
+          cd artifact_output
+          sha256sum *.bin *.mt.json > sha256sums.txt
+
+          # Create complete release ZIP bundle
+          SAFE_TYPE=$(echo "${{ matrix.build_type }}" | tr ' ' '_' | tr -cd 'a-zA-Z0-9_-')
+          ZIP_NAME="station-g3-waveshare-eth-${{ matrix.tag }}-${SAFE_TYPE}-full-package.zip"
+          zip -9 "$ZIP_NAME" \
+            firmware-*.bin \
+            firmware-*.mt.json \
+            mt-esp32s3-ota.bin \
+            littlefs-*.bin \
+            device-install.* \
+            device-update.* \
+            FLASHING.md \
+            sha256sums.txt
+          cd ..
+
+          # Capture exact upstream commit hash
+          cd firmware
+          UPSTREAM_SHA=$(git rev-parse HEAD)
+          cd ..
+
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Write build-manifest.json (excluding the large .full.bin from git repo storage while keeping it for GitHub Releases)
+          python3 -c "
+          import json, os
+
+          artifact_files = [
+              f for f in os.listdir('artifact_output')
+              if os.path.isfile(os.path.join('artifact_output', f))
+              and not f.endswith('.full.bin')
+              and not f.endswith('-full-package.zip')
+          ]
+          manifest = {
+              'tag': '${{ matrix.tag }}',
+              'channel': '${{ matrix.channel }}',
+              'build_type': '${{ matrix.build_type }}',
+              'variant_name': '${{ matrix.variant_name }}',
+              'pio_env': '${{ matrix.pio_env }}',
+              'is_custom_variant': str('${{ matrix.is_custom_variant }}').lower() == 'true',
+              'variant_dir': '${{ matrix.variant_dir }}',
+              'upstream_prs': '${{ matrix.upstream_prs }}',
+              'local_patches': '${{ matrix.local_patches }}',
+              'build_flags': '${{ matrix.build_flags }}',
+              'upstream_commit': '$UPSTREAM_SHA',
+              'build_timestamp': '$BUILD_TIME',
+              'output_subpath': '${{ matrix.output_subpath }}',
+              'artifacts': sorted(artifact_files)
+          }
+          with open('artifact_output/build-manifest.json', 'w', encoding='utf-8') as f:
+              json.dump(manifest, f, indent=2)
+          "
+
+      - name: Upload compiled artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: artifact_output/
+          retention-days: 5
+
+  publish-and-release:
+    name: Publish Builds & Create GitHub Releases
+    needs: [plan, compile]
+    if: always() && (needs.plan.outputs.has_builds == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'push')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: Download all compiled artifacts
+        if: needs.plan.outputs.has_builds == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          path: downloaded-artifacts
+
+      - name: Publish GitHub Releases and move artifacts to output tree
+        if: needs.plan.outputs.has_builds == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 -c "
+          import os, shutil, json, subprocess
+
+          download_dir = 'downloaded-artifacts'
+          releases_by_tag = {}
+
+          if os.path.exists(download_dir):
+              for root, dirs, files in os.walk(download_dir):
+                  if 'build-manifest.json' in files:
+                      manifest_path = os.path.join(root, 'build-manifest.json')
+                      with open(manifest_path, 'r', encoding='utf-8') as f:
+                          data = json.load(f)
+                      tag = data.get('tag')
+                      channel = data.get('channel', 'alpha')
+                      build_type = data.get('build_type', 'vanilla')
+                      target_subpath = data.get('output_subpath')
+
+                      # Copy repo-tracked files to ./builds/ (skipping the huge .full.bin and .zip to keep git repo lean)
+                      if target_subpath:
+                          os.makedirs(target_subpath, exist_ok=True)
+                          for f in files:
+                              if f.endswith('.full.bin') or f.endswith('-full-package.zip'):
+                                  continue
+                              src = os.path.join(root, f)
+                              dst = os.path.join(target_subpath, f)
+                              shutil.copy2(src, dst)
+                              print(f'Installed to repo tree: {f} -> {dst}')
+
+                      if tag:
+                          releases_by_tag.setdefault(tag, []).append((channel, build_type, root, files, data))
+
+          # Create or update GitHub Release for each built tag
+          for tag, entries in releases_by_tag.items():
+              channel = entries[0][0]
+              is_prerelease = (channel == 'alpha')
+              release_title = f'Station G3 (Waveshare ESP32-S3-ETH) — {tag} ({channel.upper()})'
+
+              # Find FLASHING.md from vanilla (or first entry) for release notes
+              notes_path = None
+              asset_paths = []
+              for ch, btype, rdir, rfiles, mdata in entries:
+                  if 'FLASHING.md' in rfiles and notes_path is None:
+                      notes_path = os.path.join(rdir, 'FLASHING.md')
+                  for rf in rfiles:
+                      if rf == 'build-manifest.json':
+                          continue
+                      # If vanilla or single profile, upload all individual assets + zip; otherwise upload zip
+                      if btype == 'vanilla' or rf.endswith('.zip'):
+                          asset_paths.append(os.path.join(rdir, rf))
+
+              if not notes_path:
+                  notes_path = 'README.md'
+
+              print(f'Publishing GitHub Release for {tag} with {len(asset_paths)} assets...')
+              view_res = subprocess.run(['gh', 'release', 'view', tag], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+              if view_res.returncode == 0:
+                  cmd = ['gh', 'release', 'upload', tag, '--clobber'] + asset_paths
+                  subprocess.run(cmd, check=True)
+                  edit_cmd = ['gh', 'release', 'edit', tag, '--title', release_title, '--notes-file', notes_path]
+                  subprocess.run(edit_cmd, check=True)
+              else:
+                  cmd = [
+                      'gh', 'release', 'create', tag,
+                      '--title', release_title,
+                      '--notes-file', notes_path,
+                  ]
+                  if is_prerelease:
+                      cmd.append('--prerelease')
+                  else:
+                      cmd.append('--latest')
+                  cmd.extend(asset_paths)
+                  subprocess.run(cmd, check=True)
+          "
+          rm -rf downloaded-artifacts
+
+      - name: Prune old releases and update builds/INDEX.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/prune_old_builds.py --active-folders '${{ needs.plan.outputs.active_folders }}'
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A builds/
+          if git diff --staged --quiet; then
+            echo "No changes in builds/ to commit."
+          else
+            git commit -m "Automated build & prune: Station G3 ESP32-S3-ETH firmware [skip ci]"
+            git pull --rebase origin main
+            git push origin main

@@ -1,0 +1,131 @@
+diff --git a/src/mesh/NodeDB.cpp b/src/mesh/NodeDB.cpp
+index e63e90abf..7a1811cd0 100644
+--- a/src/mesh/NodeDB.cpp
++++ b/src/mesh/NodeDB.cpp
+@@ -80,7 +80,7 @@
+ #include <hardware/watchdog.h>
+ #endif
+ 
+-#if defined(ARCH_ESP32) && !MESHTASTIC_EXCLUDE_WIFI
++#if defined(ARCH_ESP32) && (!MESHTASTIC_EXCLUDE_WIFI || HAS_ETHERNET)
+ #include <MeshtasticOTA.h>
+ #endif
+ 
+@@ -1319,7 +1319,7 @@ void NodeDB::installDefaultConfig(bool preserveKey = false)
+     config.display.compass_orientation = COMPASS_ORIENTATION;
+ #endif
+ 
+-#if defined(ARCH_ESP32) && !MESHTASTIC_EXCLUDE_WIFI
++#if defined(ARCH_ESP32) && (!MESHTASTIC_EXCLUDE_WIFI || HAS_ETHERNET)
+     if (MeshtasticOTA::isUpdated()) {
+         MeshtasticOTA::recoverConfig(&config.network);
+     }
+diff --git a/src/modules/AdminModule.cpp b/src/modules/AdminModule.cpp
+index 3b5ab8d02..0992e7391 100644
+--- a/src/modules/AdminModule.cpp
++++ b/src/modules/AdminModule.cpp
+@@ -16,7 +16,7 @@
+ #include <FSCommon.h>
+ #include <Throttle.h>
+ #include <ctype.h> // for better whitespace handling
+-#if defined(ARCH_ESP32) && !MESHTASTIC_EXCLUDE_WIFI
++#if defined(ARCH_ESP32) && (!MESHTASTIC_EXCLUDE_WIFI || HAS_ETHERNET)
+ #include "MeshtasticOTA.h"
+ #endif
+ #include "Router.h"
+@@ -379,7 +379,7 @@ bool AdminModule::handleReceivedProtobuf(const meshtastic_MeshPacket &mp, meshta
+         break;
+     }
+     case meshtastic_AdminMessage_ota_request_tag: {
+-#if defined(ARCH_ESP32) && !MESHTASTIC_EXCLUDE_WIFI
++#if defined(ARCH_ESP32) && (!MESHTASTIC_EXCLUDE_WIFI || HAS_ETHERNET)
+         LOG_INFO("OTA Requested");
+ 
+         if (r->ota_request.ota_hash.size != 32) {
+diff --git a/src/platform/esp32/MeshtasticOTA.cpp b/src/platform/esp32/MeshtasticOTA.cpp
+index ce59188c7..e99d1f37c 100644
+--- a/src/platform/esp32/MeshtasticOTA.cpp
++++ b/src/platform/esp32/MeshtasticOTA.cpp
+@@ -37,22 +37,42 @@ void initialize()
+ 
+ void recoverConfig(meshtastic_Config_NetworkConfig *network)
+ {
+-    LOG_INFO("Recovering WiFi settings after OTA update");
++    LOG_INFO("Recovering network settings after OTA update");
+ 
+     Preferences prefs;
+     prefs.begin(nvsNamespace, true);
+     String ssid = prefs.getString("ssid");
+     String psk = prefs.getString("psk");
++    uint32_t static_ip = prefs.getUInt("static_ip", 0);
++    uint32_t static_gw = prefs.getUInt("static_gw", 0);
++    uint32_t static_mask = prefs.getUInt("static_mask", 0);
++    uint32_t static_dns = prefs.getUInt("static_dns", 0);
++    bool eth_enabled = prefs.getBool("eth_enabled", false);
+     prefs.end();
+ 
+-    network->wifi_enabled = true;
+-    strncpy(network->wifi_ssid, ssid.c_str(), sizeof(network->wifi_ssid));
+-    strncpy(network->wifi_psk, psk.c_str(), sizeof(network->wifi_psk));
++    if (ssid.length() > 0) {
++        network->wifi_enabled = true;
++        strncpy(network->wifi_ssid, ssid.c_str(), sizeof(network->wifi_ssid));
++        strncpy(network->wifi_psk, psk.c_str(), sizeof(network->wifi_psk));
++    }
++
++    if (eth_enabled || static_ip != 0) {
++        network->eth_enabled = true;
++    }
++
++    if (static_ip != 0) {
++        network->address_mode = meshtastic_Config_NetworkConfig_AddressMode_STATIC;
++        network->has_ipv4_config = true;
++        network->ipv4_config.ip = static_ip;
++        network->ipv4_config.gateway = static_gw;
++        network->ipv4_config.subnet = static_mask;
++        network->ipv4_config.dns = static_dns;
++    }
+ }
+ 
+ void saveConfig(meshtastic_Config_NetworkConfig *network, meshtastic_OTAMode method, uint8_t *ota_hash)
+ {
+-    LOG_INFO("Saving WiFi settings for upcoming OTA update");
++    LOG_INFO("Saving network settings for upcoming OTA update");
+ 
+     Preferences prefs;
+     prefs.begin(nvsNamespace);
+@@ -60,6 +80,21 @@ void saveConfig(meshtastic_Config_NetworkConfig *network, meshtastic_OTAMode met
+     prefs.putBytes("ota_hash", ota_hash, 32);
+     prefs.putString("ssid", network->wifi_ssid);
+     prefs.putString("psk", network->wifi_psk);
++    prefs.putBool("eth_enabled", network->eth_enabled);
++
++    if (network->address_mode == meshtastic_Config_NetworkConfig_AddressMode_STATIC &&
++        network->ipv4_config.ip != 0) {
++        prefs.putUInt("static_ip", network->ipv4_config.ip);
++        prefs.putUInt("static_gw", network->ipv4_config.gateway);
++        prefs.putUInt("static_mask", network->ipv4_config.subnet);
++        prefs.putUInt("static_dns", network->ipv4_config.dns);
++    } else {
++        prefs.remove("static_ip");
++        prefs.remove("static_gw");
++        prefs.remove("static_mask");
++        prefs.remove("static_dns");
++    }
++
+     prefs.putBool("updated", false);
+     prefs.end();
+ }
+diff --git a/src/platform/esp32/main-esp32.cpp b/src/platform/esp32/main-esp32.cpp
+index 8bda0da8f..ab9448a06 100644
+--- a/src/platform/esp32/main-esp32.cpp
++++ b/src/platform/esp32/main-esp32.cpp
+@@ -289,7 +289,7 @@ void esp32Setup()
+         preferences.putUInt("hwVendor", HW_VENDOR);
+     preferences.end();
+     LOG_DEBUG("Number of Device Reboots: %d", rebootCounter);
+-#if !MESHTASTIC_EXCLUDE_WIFI
++#if !MESHTASTIC_EXCLUDE_WIFI || HAS_ETHERNET
+     String version = MeshtasticOTA::getVersion();
+     if (version.isEmpty()) {
+         LOG_INFO("MeshtasticOTA firmware not available");

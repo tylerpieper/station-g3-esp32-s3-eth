@@ -35,13 +35,29 @@ Each release automatically compiles upstream [Meshtastic Firmware](https://githu
 
 ## Flashing Instructions
 
-Download the latest release package from the [**GitHub Releases**](https://github.com/tylerpieper/station-g3-esp32-s3-eth/releases) page (`station-g3-waveshare-eth-<version>-vanilla-full-package.zip`).
+### Option 1: Web Flasher (Recommended — No CLI or Tools Required)
 
-### 1. Initial Full Flash (Erases Flash & Installs All Partitions Including Ethernet OTA)
+You can flash directly from any WebSerial-compatible browser (Google Chrome, Microsoft Edge, Opera, Brave) using our **Custom Meshtastic Web Flasher**:
 
-Put the Waveshare ESP32-S3-ETH into USB DFU / Bootloader mode (hold **BOOT**, tap **RESET**, release **BOOT**).
+👉 **[Launch Custom Meshtastic Web Flasher](https://tylerpieper.github.io/Meshtastic-custom-web-flasher/)**
 
-#### Option A: Using `device-install` Script (Recommended)
+1. Connect the Waveshare ESP32-S3-ETH module to your computer via USB-C.
+2. Put the board into bootloader mode: hold down **BOOT**, tap **RESET**, then release **BOOT**.
+3. On the Web Flasher, click **Select Device** and choose **Station G3 (Waveshare ESP32-S3-ETH)**.
+4. Select the release channel (**Alpha** or **Beta/Stable**) and firmware version.
+5. Click **Flash Device** (leave *Full Erase and Install* selected on initial installation so all partitions, including LittleFS and the W5500 Ethernet OTA bootloader, are installed).
+
+---
+
+### Option 2: Command-Line Flashing (Local Tools)
+
+Download the latest release package from the [**GitHub Releases**](https://github.com/tylerpieper/station-g3-esp32-s3-eth/releases) page (`station-g3-waveshare-eth-<version>-vanilla-full-package.zip`) or grab the `.full.bin` directly from [`builds/`](builds/INDEX.md).
+
+#### Initial Full Flash (Erases Flash & Installs All Partitions)
+
+Put the Waveshare ESP32-S3-ETH into USB bootloader mode (hold **BOOT**, tap **RESET**, release **BOOT**).
+
+##### Method A: Automated Script (Recommended)
 ```bash
 # Linux / macOS:
 ./device-install.sh -p /dev/ttyACM0 -f firmware-station-g3-waveshare-eth-<version>.factory.bin
@@ -50,13 +66,14 @@ Put the Waveshare ESP32-S3-ETH into USB DFU / Bootloader mode (hold **BOOT**, ta
 .\device-install.bat -p COM3 -f firmware-station-g3-waveshare-eth-<version>.factory.bin
 ```
 
-#### Option B: Single-File Flash Using Merged `.full.bin` (`esptool` or Web Flasher)
+##### Method B: Single-File All-in-One Merged Flash (`.full.bin`)
+Flash the single pre-merged 16 MB binary at offset `0x0`:
 ```bash
 python -m esptool --chip esp32s3 --port <PORT> erase-flash
 python -m esptool --chip esp32s3 --port <PORT> write-flash 0x0 firmware-station-g3-waveshare-eth-<version>.full.bin
 ```
 
-#### Option C: Manual Multi-Partition `esptool` Flash
+##### Method C: Manual Multi-Partition `esptool` Flash
 ```bash
 python -m esptool --chip esp32s3 --port <PORT> erase-flash
 python -m esptool --chip esp32s3 --port <PORT> write-flash \

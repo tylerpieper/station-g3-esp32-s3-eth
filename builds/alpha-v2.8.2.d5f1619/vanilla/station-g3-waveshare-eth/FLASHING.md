@@ -15,7 +15,18 @@ This package includes the complete 16 MB partition layout for the **Station G3 +
 
 ---
 
-## Option A: Automated Full Flash via Script (Recommended for Initial Install)
+## Option 1: Web Flasher (Recommended — No Tools Required)
+
+Flash directly in any WebSerial-compatible browser:
+👉 **[Custom Meshtastic Web Flasher](https://tylerpieper.github.io/Meshtastic-custom-web-flasher/)**
+
+1. Put the Waveshare ESP32-S3-ETH into bootloader mode (hold **BOOT**, tap **RESET**, release **BOOT**).
+2. Select **Station G3 (Waveshare ESP32-S3-ETH)** and choose the release channel.
+3. Click **Flash Device** (keep *Full Erase and Install* selected for initial setup).
+
+---
+
+## Option 2: Automated Full Flash via Script (Recommended for Local Install)
 
 Flashes `factory.bin` (`0x0`), `mt-esp32s3-ota.bin` (`0x650000`), and `littlefs.bin` (`0xC90000`) automatically.
 

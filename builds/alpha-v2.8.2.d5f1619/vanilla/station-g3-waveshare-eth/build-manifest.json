@@ -20,6 +20,7 @@
     "device-update.sh",
     "firmware-station-g3-waveshare-eth-2.8.2.d5f1619.bin",
     "firmware-station-g3-waveshare-eth-2.8.2.d5f1619.factory.bin",
+    "firmware-station-g3-waveshare-eth-2.8.2.d5f1619.full.bin",
     "firmware-station-g3-waveshare-eth-2.8.2.d5f1619.mt.json",
     "littlefs-station-g3-waveshare-eth-2.8.2.d5f1619.bin",
     "mt-esp32s3-ota.bin",

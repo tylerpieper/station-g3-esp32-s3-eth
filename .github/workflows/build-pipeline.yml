@@ -521,3 +521,20 @@ jobs:
             git pull --rebase origin main
             git push origin main
           fi
+
+      - name: Dispatch build event to custom-builds repository
+        if: needs.compile.result == 'success'
+        env:
+          DISPATCH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
+        run: |
+          if [ -n "$DISPATCH_TOKEN" ]; then
+            echo "Dispatching station-g3-updated event to tylerpieper/meshtastic-custom-builds..."
+            curl -s -f -X POST \
+              -H "Accept: application/vnd.github.v3+json" \
+              -H "Authorization: Bearer ${DISPATCH_TOKEN}" \
+              https://api.github.com/repos/tylerpieper/meshtastic-custom-builds/dispatches \
+              -d '{"event_type":"station-g3-updated"}' || echo "Warning: Failed to dispatch event to custom-builds"
+          else
+            echo "DISPATCH_TOKEN not set; skipping downstream repository_dispatch."
+          fi
+

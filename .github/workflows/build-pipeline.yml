@@ -25,6 +25,9 @@ on:
         required: false
         default: false
         type: boolean
+  repository_dispatch:
+    types:
+      - ethernet-ota-updated
 
 permissions:
   contents: write
@@ -66,8 +69,10 @@ jobs:
           ARGS="--config build-config.yaml"
           if [ -n "${{ inputs.force_tag }}" ]; then
             ARGS="$ARGS --force-tag ${{ inputs.force_tag }}"
+          elif [ -n "${{ github.event.client_payload.force_tag }}" ]; then
+            ARGS="$ARGS --force-tag ${{ github.event.client_payload.force_tag }}"
           fi
-          if [ "${{ inputs.force_rebuild }}" = "true" ]; then
+          if [ "${{ inputs.force_rebuild }}" = "true" ] || [ "${{ github.event_name }}" = "repository_dispatch" ]; then
             ARGS="$ARGS --force-rebuild"
           fi
           python3 scripts/resolve_matrix.py $ARGS

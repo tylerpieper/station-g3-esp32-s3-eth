@@ -81,8 +81,9 @@ jobs:
     name: Compile ${{ matrix.variant_name }} (${{ matrix.build_type }} @ ${{ matrix.tag }})
     needs: plan
     if: needs.plan.outputs.has_builds == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, meshtastic-builder]
     env:
+      PYTHONPATH: /usr/local/lib/python3.12/dist-packages:/opt/pio-venv/lib/python3.12/site-packages
       PLATFORMIO_SETTING_ENABLE_TELEMETRY: '0'
       PLATFORMIO_SETTING_CHECK_PLATFORMIO_INTERVAL: '3650'
       PLATFORMIO_SETTING_CHECK_PRUNE_SYSTEM_THRESHOLD: '10240'
@@ -90,6 +91,10 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
     steps:
+      - name: Clean workspace before build
+        run: |
+          rm -rf overlay firmware artifact_output
+
       - name: Checkout custom overlay repository
         uses: actions/checkout@v4
         with:
@@ -102,50 +107,6 @@ jobs:
           ref: ${{ matrix.tag }}
           submodules: recursive
           path: firmware
-
-      - name: Set up Python & PlatformIO
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-
-      - name: Cache PlatformIO downloads
-        uses: actions/cache@v4
-        with:
-          path: ~/.platformio/.cache
-          key: pio-cache-${{ runner.os }}-${{ hashFiles('variants/**/platformio.ini', 'firmware/platformio.ini') }}
-          restore-keys: |
-            pio-cache-${{ runner.os }}-
-
-      - name: Install PlatformIO and esptool
-        run: |
-          python3 -m pip install --upgrade pip uv
-          if [ -f "firmware/.github/actions/setup-base/requirements.txt" ]; then
-            pip install -r firmware/.github/actions/setup-base/requirements.txt
-          fi
-          pip install "pioarduino==6.2.0" esptool pyyaml
-          uv venv "$HOME/.platformio/penv" --python "$(which python3)"
-          uv pip install --python "$HOME/.platformio/penv/bin/python" \
-            "pioarduino==6.2.0" \
-            "uv>=0.1.0" \
-            "littlefs-python>=0.16.0" \
-            "fatfs-ng>=0.1.14" \
-            "pyyaml>=6.0.2" \
-            "rich-click>=1.8.6" \
-            "zopfli>=0.2.2" \
-            "intelhex>=2.3.0" \
-            "rich>=14.0.0" \
-            "cryptography>=45.0.3" \
-            "certifi>=2025.8.3" \
-            "ecdsa>=0.19.1" \
-            "bitstring>=4.3.1" \
-            "reedsolo>=1.5.3,<1.8" \
-            "esp-idf-size>=2.0.0" \
-            "esp-coredump>=1.14.0" \
-            "pyelftools>=0.32" \
-            esptool
-          echo "$HOME/.platformio/penv/bin" >> "$GITHUB_PATH"
-          "$HOME/.platformio/penv/bin/pio" --version
 
       - name: Overlay custom variant
         if: matrix.is_custom_variant

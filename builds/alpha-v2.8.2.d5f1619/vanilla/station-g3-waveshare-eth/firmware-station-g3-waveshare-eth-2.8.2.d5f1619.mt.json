@@ -7,23 +7,23 @@
   "files": [
     {
       "name": "firmware-station-g3-waveshare-eth-2.8.2.d5f1619.elf",
-      "md5": "c773a96b6817740d146566fc4442f642",
-      "bytes": 48226800
+      "md5": "6417aea5505e058b1bc9b80a7c03c4ce",
+      "bytes": 48069924
     },
     {
       "name": "firmware-station-g3-waveshare-eth-2.8.2.d5f1619.bin",
-      "md5": "2f698e62b4da105b0fbda4c3652bcdfb",
-      "bytes": 2364368,
+      "md5": "b713d16f73411f494d0a9d27f22276ab",
+      "bytes": 2363664,
       "part_name": "app0"
     },
     {
       "name": "firmware-station-g3-waveshare-eth-2.8.2.d5f1619.factory.bin",
-      "md5": "40f8b180383d04eb2f74deca95a2f5ee",
-      "bytes": 2429904
+      "md5": "f2dda9dd1ff0c775c12a42c51715333b",
+      "bytes": 2429200
     },
     {
       "name": "littlefs-station-g3-waveshare-eth-2.8.2.d5f1619.bin",
-      "md5": "864abbd4e72a7bdae16a5870990aac86",
+      "md5": "a1d270bb4f60bb895fb07627b1841766",
       "bytes": 3538944,
       "part_name": "spiffs"
     },
@@ -37,7 +37,7 @@
   "has_mui": false,
   "has_inkhud": false,
   "ram_bytes": 99776,
-  "flash_bytes": 2389191,
+  "flash_bytes": 2388487,
   "part": [
     {
       "name": "nvs",

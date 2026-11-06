@@ -10,7 +10,7 @@
   "local_patches": "station-g3-eth-ota.patch",
   "build_flags": "",
   "upstream_commit": "d5f16191ca28b01b5024f590f04a67f25d66f1b1",
-  "build_timestamp": "2026-11-06T05:53:06Z",
+  "build_timestamp": "2026-11-06T06:07:23Z",
   "output_subpath": "builds/alpha-v2.8.2.d5f1619/vanilla/station-g3-waveshare-eth",
   "artifacts": [
     "FLASHING.md",

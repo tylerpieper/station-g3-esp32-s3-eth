@@ -2,6 +2,8 @@
 
 This directory is dedicated to the hardware design files for the **Station G3 + Waveshare ESP32-S3-ETH Custom Interposer**.
 
+* **[Interposer Assembly Guide](assembly.md)** — Step-by-step DIY soldering and testing instructions (`D1` -> `J1` -> `J2`/`J3`).
+
 ## Recommended Directory Layout
 
 * `kicad/` — KiCad project (`.kicad_pro`), schematic (`.kicad_sch`), and PCB layout (`.kicad_pcb`)

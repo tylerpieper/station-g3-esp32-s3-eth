@@ -1,10 +1,3 @@
-diff --git a/protobufs b/protobufs
-index 6b1ded439..8d0ed0c13 160000
---- a/protobufs
-+++ b/protobufs
-@@ -1 +1 @@
--Subproject commit 6b1ded439633cd03d4af85b44231b91d1d106278
-+Subproject commit 8d0ed0c135f91ad1d6f9c60bc341277d64946bce
 diff --git a/src/modules/DMRelayModule.cpp b/src/modules/DMRelayModule.cpp
 new file mode 100644
 index 000000000..1cd79b2d9

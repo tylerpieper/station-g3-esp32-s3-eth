@@ -296,41 +296,41 @@ jobs:
 
           ---
 
-          ## Option B: Single-File Full Flash (Web Flasher or \`esptool\` All-in-One)
+          ## Option 3: Single-File Full Flash (`esptool` All-in-One)
 
-          If using a single-file flasher (such as ESP Web Tools, Espressif Flash Download Tool, or single-command \`esptool\`), flash the \`.full.bin\` image at offset \`0x0\`:
+          If using a single-file flasher (such as ESP Web Tools, Espressif Flash Download Tool, or single-command `esptool`), flash the `.full.bin` image at offset `0x0`:
 
-          \`\`\`bash
+          ```bash
           python -m esptool --chip esp32s3 --port <PORT> erase-flash
           python -m esptool --chip esp32s3 --port <PORT> write-flash 0x0 firmware-station-g3-waveshare-eth-${VER_STRIPPED}.full.bin
-          \`\`\`
+          ```
 
           ---
 
-          ## Option C: Manual Multi-Partition Flash (\`esptool\`)
+          ## Option 4: Manual Multi-Partition Flash (`esptool`)
 
-          \`\`\`bash
+          ```bash
           python -m esptool --chip esp32s3 --port <PORT> erase-flash
-          python -m esptool --chip esp32s3 --port <PORT> write-flash \\
-            0x000000 firmware-station-g3-waveshare-eth-${VER_STRIPPED}.factory.bin \\
-            0x650000 mt-esp32s3-ota.bin \\
+          python -m esptool --chip esp32s3 --port <PORT> write-flash \
+            0x000000 firmware-station-g3-waveshare-eth-${VER_STRIPPED}.factory.bin \
+            0x650000 mt-esp32s3-ota.bin \
             0xC90000 littlefs-station-g3-waveshare-eth-${VER_STRIPPED}.bin
-          \`\`\`
+          ```
 
           ---
 
-          ## Option D: Wired Ethernet OTA Update (No USB Required)
+          ## Option 5: Wired Ethernet OTA Update (No USB Required)
 
-          Once the device has been flashed with this setup (which installs \`mt-esp32s3-ota.bin\` in \`app1\`), future updates can be performed directly over **Wired Ethernet (TCP port 3232)** for both **DHCP** and **Static IP** configurations:
+          Once the device has been flashed with this setup (which installs `mt-esp32s3-ota.bin` in `app1`), future updates can be performed directly over **Wired Ethernet (TCP port 3232)** for both **DHCP** and **Static IP** configurations:
 
-          \`\`\`bash
+          ```bash
           # Using Meshtastic Python CLI (>= 2.5+):
           meshtastic --host <DEVICE_IP> --ota-update firmware-station-g3-waveshare-eth-${VER_STRIPPED}.bin
-          \`\`\`
+          ```
 
           ---
 
-          ## Option E: USB Firmware Update (Preserves Settings)
+          ## Option 6: USB Firmware Update (Preserves Settings)
 
           To update only the \`app0\` firmware (\`0x10000\`) over USB without erasing NVS configuration or LittleFS:
 
@@ -474,25 +474,29 @@ jobs:
               is_prerelease = (channel == 'alpha')
               release_title = f'Station G3 (Waveshare ESP32-S3-ETH) — {tag} ({channel.upper()})'
 
+              view_res = subprocess.run(['gh', 'release', 'view', tag], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+              release_exists = (view_res.returncode == 0)
+              has_vanilla = any(btype == 'vanilla' for _, btype, _, _, _ in entries)
+
               # Find FLASHING.md from vanilla (or first entry) for release notes
               notes_path = None
               asset_paths = []
-              for ch, btype, rdir, rfiles, mdata in entries:
-                  if 'FLASHING.md' in rfiles and notes_path is None:
+              for idx, (ch, btype, rdir, rfiles, mdata) in enumerate(entries):
+                  if 'FLASHING.md' in rfiles and (btype == 'vanilla' or notes_path is None):
                       notes_path = os.path.join(rdir, 'FLASHING.md')
+                  include_individual = (btype == 'vanilla') or (not release_exists and not has_vanilla and idx == 0)
                   for rf in rfiles:
                       if rf == 'build-manifest.json':
                           continue
-                      # If vanilla or single profile, upload all individual assets + zip; otherwise upload zip
-                      if btype == 'vanilla' or rf.endswith('.zip'):
+                      # Upload all individual assets for vanilla (or first profile on a fresh release without vanilla); otherwise upload zip
+                      if include_individual or rf.endswith('.zip'):
                           asset_paths.append(os.path.join(rdir, rf))
 
               if not notes_path:
                   notes_path = 'README.md'
 
               print(f'Publishing GitHub Release for {tag} with {len(asset_paths)} assets...')
-              view_res = subprocess.run(['gh', 'release', 'view', tag], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-              if view_res.returncode == 0:
+              if release_exists:
                   cmd = ['gh', 'release', 'upload', tag, '--clobber'] + asset_paths
                   subprocess.run(cmd, check=True)
                   edit_cmd = ['gh', 'release', 'edit', tag, '--title', release_title, '--notes-file', notes_path]

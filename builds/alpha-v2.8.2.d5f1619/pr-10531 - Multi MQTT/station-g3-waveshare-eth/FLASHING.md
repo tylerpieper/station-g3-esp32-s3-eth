@@ -46,7 +46,7 @@ Flashes `factory.bin` (`0x0`), `mt-esp32s3-ota.bin` (`0x650000`), and `littlefs.
 
 ---
 
-## Option B: Single-File Full Flash (Web Flasher or `esptool` All-in-One)
+## Option 3: Single-File Full Flash (`esptool` All-in-One)
 
 If using a single-file flasher (such as ESP Web Tools, Espressif Flash Download Tool, or single-command `esptool`), flash the `.full.bin` image at offset `0x0`:
 
@@ -57,7 +57,7 @@ python -m esptool --chip esp32s3 --port <PORT> write-flash 0x0 firmware-station-
 
 ---
 
-## Option C: Manual Multi-Partition Flash (`esptool`)
+## Option 4: Manual Multi-Partition Flash (`esptool`)
 
 ```bash
 python -m esptool --chip esp32s3 --port <PORT> erase-flash
@@ -69,7 +69,7 @@ python -m esptool --chip esp32s3 --port <PORT> write-flash \
 
 ---
 
-## Option D: Wired Ethernet OTA Update (No USB Required)
+## Option 5: Wired Ethernet OTA Update (No USB Required)
 
 Once the device has been flashed with this setup (which installs `mt-esp32s3-ota.bin` in `app1`), future updates can be performed directly over **Wired Ethernet (TCP port 3232)** for both **DHCP** and **Static IP** configurations:
 
@@ -80,7 +80,7 @@ meshtastic --host <DEVICE_IP> --ota-update firmware-station-g3-waveshare-eth-2.8
 
 ---
 
-## Option E: USB Firmware Update (Preserves Settings)
+## Option 6: USB Firmware Update (Preserves Settings)
 
 To update only the `app0` firmware (`0x10000`) over USB without erasing NVS configuration or LittleFS:
 

@@ -31,8 +31,8 @@ Following the recommended soldering order (**`D1` -> `J1` -> `J2` & `J3`**) keep
 
 ## Assembly Order Summary
 
-1. **`D1` (SMA Schottky Diode)** on the **Top (`F.Cu`)** side — unobstructed flat board access and clear visibility of the cathode marking.
-2. **`J1` (`2x20` Male Header)** inserted from the **Bottom (`B.Cu`)** side and soldered on the **Top (`F.Cu`)** side — `J1`'s 40 pins sit directly between `J2` and `J3`, so installing `J1` before the `1x20` sockets prevents the socket housings from blocking your soldering iron.
+1. **`D1` (SMA Schottky Diode)** on the **Top (`F.Cu`)** side (located between `J3` and `J2`) — unobstructed flat board access and clear visibility of the cathode marking.
+2. **`J1` (`2x20` Male Header)** along the **outer edge of the board next to `J3`**, inserted from the **Bottom (`B.Cu`)** side and soldered on the **Top (`F.Cu`)** side — installing `J1` before `J2`/`J3` keeps the top of the PCB flat and prevents the tall `1x20` socket housing of `J3` (~5.7 mm away) from crowding your iron or getting melted while soldering `J1`'s 40 pins.
 3. **`J2` and `J3` (`1x20` Female Headers)** inserted from the **Top (`F.Cu`)** side and soldered on the **Bottom (`B.Cu`)** side.
 
 ---
@@ -54,7 +54,7 @@ Following the recommended soldering order (**`D1` -> `J1` -> `J2` & `J3`**) keep
 
 ### Step 2: Solder the `2x20` Header `J1` (Bottom / `B.Cu` Side)
 
-> **Why second?** `J1`'s solder joints are on the **Top (`F.Cu`)** side right between the footprints of `J2` and `J3`. Soldering `J1` before `J2` and `J3` gives full access to all 40 pins without melting the `1x20` female socket housings.
+> **Why second?** `J1` sits along the **outer edge of the board** right beside `J3` (`~5.7 mm` center-to-center spacing), and its 40 pins are soldered from the **Top (`F.Cu`)** side. Installing `J1` before `J2` and `J3` keeps the board flat and avoids crowding or melting `J3`'s tall female socket housing with your soldering iron.
 
 1. Insert **`J1`** (`2x20` vertical male pin header) from the **Bottom (`B.Cu`)** side so the plastic spacer sits flush against the underside of the PCB and the pins protrude up through to the **Top (`F.Cu`)** side.
    * *Double-check:* The `<- Ethernet` and title silkscreen should be facing **up/away from `J1`**.

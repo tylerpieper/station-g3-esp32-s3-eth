@@ -1,0 +1,105 @@
+{
+  "version": "2.8.2.d5f1619",
+  "build_epoch": 1794528000,
+  "platformioTarget": "station-g3-waveshare-eth",
+  "mcu": "esp32s3",
+  "repo": "meshtastic/firmware",
+  "files": [
+    {
+      "name": "firmware-station-g3-waveshare-eth-2.8.2.d5f1619.elf",
+      "md5": "369a92285a2941b9e3c0137b63cb8db6",
+      "bytes": 48070864
+    },
+    {
+      "name": "firmware-station-g3-waveshare-eth-2.8.2.d5f1619.bin",
+      "md5": "4e56baa3994ef066f90b18bf1cf49990",
+      "bytes": 2363824,
+      "part_name": "app0"
+    },
+    {
+      "name": "firmware-station-g3-waveshare-eth-2.8.2.d5f1619.factory.bin",
+      "md5": "2e0972156f683c61ad4667286987ce92",
+      "bytes": 2429360
+    },
+    {
+      "name": "littlefs-station-g3-waveshare-eth-2.8.2.d5f1619.bin",
+      "md5": "1319733742d4a258bc0ad3b4278e3ef3",
+      "bytes": 3538944,
+      "part_name": "spiffs"
+    },
+    {
+      "name": "mt-esp32s3-ota.bin",
+      "md5": "1748b825da2e2393c0611374aeaca236",
+      "bytes": 476928,
+      "part_name": "app1"
+    }
+  ],
+  "has_mui": false,
+  "has_inkhud": false,
+  "ram_bytes": 99776,
+  "flash_bytes": 2388639,
+  "part": [
+    {
+      "name": "nvs",
+      "type": "data",
+      "subtype": "nvs",
+      "offset": "0x9000",
+      "size": "0x5000",
+      "flags": ""
+    },
+    {
+      "name": "otadata",
+      "type": "data",
+      "subtype": "ota",
+      "offset": "0xe000",
+      "size": "0x2000",
+      "flags": ""
+    },
+    {
+      "name": "app0",
+      "type": "app",
+      "subtype": "ota_0",
+      "offset": "0x10000",
+      "size": "0x640000",
+      "flags": ""
+    },
+    {
+      "name": "app1",
+      "type": "app",
+      "subtype": "ota_1",
+      "offset": "0x650000",
+      "size": "0x640000",
+      "flags": ""
+    },
+    {
+      "name": "spiffs",
+      "type": "data",
+      "subtype": "spiffs",
+      "offset": "0xc90000",
+      "size": "0x360000",
+      "flags": ""
+    },
+    {
+      "name": "coredump",
+      "type": "data",
+      "subtype": "coredump",
+      "offset": "0xFF0000",
+      "size": "0x10000",
+      "flags": ""
+    }
+  ],
+  "hwModel": 134,
+  "hwModelSlug": "STATION_G3",
+  "architecture": "esp32-s3",
+  "activelySupported": true,
+  "displayName": "Station G3 (Waveshare ESP32-S3-ETH)",
+  "supportLevel": 3,
+  "images": [
+    "station-g3.svg"
+  ],
+  "tags": [
+    "B&Q"
+  ],
+  "requiresDfu": true,
+  "partitionScheme": "16MB"
+}

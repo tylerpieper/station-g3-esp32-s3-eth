@@ -150,7 +150,24 @@ jobs:
         env:
           PLATFORMIO_BUILD_FLAGS: ${{ matrix.build_flags }}
         run: |
-          pio run -e ${{ matrix.pio_env }} -t mtjson
+          buildlog=$(mktemp)
+          trap 'rm -f "$buildlog"' EXIT
+          for attempt in 1 2 3; do
+            set +e
+            pio run -e "${{ matrix.pio_env }}" -t mtjson 2>&1 | tee "$buildlog"
+            status=${PIPESTATUS[0]}
+            set -e
+            if [ "$status" -eq 0 ]; then
+              break
+            fi
+            if [ "$attempt" -ge 3 ] || \
+              ! tr -s '[:space:]' ' ' < "$buildlog" | grep -qE "ComponentManager/b_git_[0-9a-f]+ fetch origin' failed"; then
+              exit "$status"
+            fi
+            delay=$((attempt * 15))
+            echo "ESP-IDF component fetch failed on attempt $attempt of 3; retrying in ${delay}s..."
+            sleep "$delay"
+          done
 
       - name: Collect artifacts, integrate Ethernet OTA partition, and package release bundle
         run: |

@@ -1,6 +1,6 @@
 # Meshtastic Custom Firmware Builds Index
 
-> **Last Pipeline Sync:** `2026-11-13 21:26:06 UTC`  
+> **Last Pipeline Sync:** `2026-11-18 20:38:16 UTC`  
 > **Active Release Folders:** `alpha-v2.8.2.d5f1619`, `beta-v2.7.26.54e0d8d`
 
 This directory contains automated, overlay-patched firmware binaries compiled by the CI/CD pipeline.

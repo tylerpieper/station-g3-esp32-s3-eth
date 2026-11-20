@@ -47,6 +47,7 @@
 // Station G3 Baseboard PA/LNA header pins (controlled by hardware jumpers PA-PL1/PL2 & LNA-P by default)
 #define LORA_PA_MODE_PIN 42  // J2 Pin 9  (GPIO42) <- J1 Pin 11 (PA Mode)
 #define LORA_LNA_MODE_PIN 16 // J3 Pin 32 (GPIO16) <- J1 Pin 16 (Primary Slot LNA Mode)
+#define LORA_STATION_G3_LNA_EN LORA_LNA_MODE_PIN
 
 // 5. Waveshare Onboard W5500 10/100Mbps Ethernet (Internal SPI3_HOST Routing)
 #define HAS_ETHERNET 1

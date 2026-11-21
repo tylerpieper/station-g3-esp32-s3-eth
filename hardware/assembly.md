@@ -8,7 +8,7 @@ Following the recommended soldering order (**`D1` -> `J1` -> `J2` & `J3`**) keep
 
 ## Parts & Tools Required
 
-### Bill of Materials (per board)
+### Bill of Materials (per board, included when ordered from me)
 
 | Ref | Qty | Component | KiCad Footprint / Notes | Side |
 | :--- | :--- | :--- | :--- | :--- |
@@ -16,7 +16,8 @@ Following the recommended soldering order (**`D1` -> `J1` -> `J2` & `J3`**) keep
 | **`D1`** | `1` | SMA (`DO-214AC`) Schottky Diode (e.g., `SS14`, `SS24`, `SS34`, or `B5819W` in SMA, ≥ 1 A / ≥ 20 V) | `Diode_SMD:D_SMA_Handsoldering` — 5V reverse-current / OR-ing diode from Station G3 `5V_VSYS` to Waveshare `5V_ESP_IN` | **Top (`F.Cu`)** |
 | **`J1`** | `1` | `2x20` (40-pin) 2.54 mm vertical male pin header | `PinHeader_2x20_P2.54mm_Vertical` — plugs down into Station G3 baseboard `J1` | **Bottom (`B.Cu`)** |
 | **`J2`, `J3`** | `2` | `1x20` (20-pin) 2.54 mm vertical female pin sockets | `PinSocket_1x20_P2.54mm_Vertical` — Waveshare ESP32-S3-ETH plugs down into these | **Top (`F.Cu`)** |
-| *(Optional)* | `4` | M2.5 standoffs / screws | Fits the four `2.7 mm` corner mounting holes | — |
+
+<img width="500" alt="PXL_20261121_202200135" src="https://github.com/user-attachments/assets/b5211bc5-0026-45e1-8fdd-b4d020ea0a44" />
 
 ### Recommended Tools
 
@@ -40,6 +41,7 @@ Following the recommended soldering order (**`D1` -> `J1` -> `J2` & `J3`**) keep
 ## Step-by-Step Instructions
 
 ### Step 1: Solder Schottky Diode `D1` (Top / `F.Cu` Side)
+<img width="300" alt="PXL_20261121_202619131" src="https://github.com/user-attachments/assets/7c157adb-4ae3-40f0-88fa-bb742ca46a83" />
 
 1. Locate **`D1`** on the **Top (`F.Cu`)** side of the PCB (same side as the `<- Ethernet` arrow and board title silkscreen).
 2. **Verify polarity before soldering:**
@@ -55,22 +57,25 @@ Following the recommended soldering order (**`D1` -> `J1` -> `J2` & `J3`**) keep
 ### Step 2: Solder the `2x20` Header `J1` (Bottom / `B.Cu` Side)
 
 > **Why second?** `J1` sits along the **outer edge of the board** right beside `J3` (`~5.7 mm` center-to-center spacing), and its 40 pins are soldered from the **Top (`F.Cu`)** side. Installing `J1` before `J2` and `J3` keeps the board flat and avoids crowding or melting `J3`'s tall female socket housing with your soldering iron.
+<img width="500" alt="PXL_20261121_202736195" src="https://github.com/user-attachments/assets/eca895c8-247e-406f-a42f-49115ad60945" />
 
 1. Insert **`J1`** (`2x20` vertical male pin header) from the **Bottom (`B.Cu`)** side so the plastic spacer sits flush against the underside of the PCB and the pins protrude up through to the **Top (`F.Cu`)** side.
    * *Double-check:* The `<- Ethernet` and title silkscreen should be facing **up/away from `J1`**.
 2. Set the board gently upside-down or prop the edges slightly off your mat so the pins stay pushed flush through the board without resting directly on `D1`.
 3. On the **Top (`F.Cu`)** side, solder **one corner pin** only.
 4. Pick up the board and confirm `J1` sits completely **flat** against the bottom of the PCB and **square (`90°`)**. If it is tilted, reheat that single pin while pressing the header gently into alignment.
-5. Solder the diagonally opposite corner pin, re-check flatness, and then solder all remaining 38 pins on the **Top (`F.Cu`)** side.
-6. Inspect carefully for solder bridges between the two adjacent rows of `J1`. If any pins sit unnecessarily high on the top side near `D1` or future board clearance, trim only excess needle tips cleanly with flush cutters (do not cut into the solder fillets).
+ <img width="500" alt="PXL_20261121_202746656" src="https://github.com/user-attachments/assets/51cce2aa-d43e-4da9-8069-7f3a40238537" />
+  
+6. Solder the diagonally opposite corner pin, re-check flatness, and then solder all remaining 38 pins on the **Top (`F.Cu`)** side.
 
 ---
 
 ### Step 3: Solder the Two `1x20` Female Headers `J2` & `J3` (Top / `F.Cu` Side)
+<img width="500"  alt="PXL_20261121_204345379" src="https://github.com/user-attachments/assets/648a514d-1ae7-4c91-b2fc-43f3912465b3" />
 
 1. Insert both **`J2`** and **`J3`** (`1x20` vertical female sockets) from the **Top (`F.Cu`)** side so their plastic housings sit on the same side as `D1` and the silkscreen text, with solder tails extending down through to the **Bottom (`B.Cu`)** side.
 2. **Alignment Jig (Recommended):**
-   * Lightly plug the **Waveshare ESP32-S3-ETH** module (or two spare straight `1x20` male header strips) into `J2` and `J3` before soldering. This guarantees both sockets stay parallel and spaced identically to the Waveshare pins.
+   * Lightly plug the **Waveshare ESP32-S3-ETH** module (or two spare straight `1x20` male header strips - such as those that come with Heltec boards) into `J2` and `J3` before soldering. This guarantees both sockets stay parallel and spaced identically to the Waveshare pins.
    * Confirm the Waveshare board's RJ45 Ethernet jack points in the direction of the **`<- Ethernet`** arrow on the top silkscreen (`F.SilkS`).
 3. Keep the sockets pressed flush against the top of the PCB, turn the assembly over, and tack **one end pin on `J2`** and **one end pin on `J3`** from the **Bottom (`B.Cu`)** side.
 4. Check from both ends that `J2` and `J3` sit completely flush against the PCB and parallel.
@@ -88,11 +93,15 @@ Before installing the interposer onto the Station G3 or Waveshare module:
 3. **Multimeter checks (board unpopulated and unpowered):**
    * **No dead shorts:** Check resistance between **`GND`** (`J1` Pin 6), **`3V3_LOGIC`** (`J1` Pin 1), and **`5V_VSYS`** (`J1` Pin 2) — none should beep continuous short.
    * **`D1` polarity check:** In diode mode, place the **red (+)** probe on `J1` Pin 2 (`5V_VSYS`) and the **black (−)** probe on `J3` Pin 39 (`5V_ESP_IN`). You should measure a Schottky forward drop (`~0.15 V–0.35 V`). Reversing the probes should read open / `OL`.
+<img width="500" alt="PXL_20261113_202111552" src="https://github.com/user-attachments/assets/fbd5aa59-2cc0-495d-902c-fe3c5c48d12f" />
 
 ---
 
 ## Final Module Mating & Installation
+<img width="500" alt="PXL_20261113_202143425" src="https://github.com/user-attachments/assets/03d9d32b-5abe-43bc-a245-33be04a4bc13" />
 
 1. Press the **Waveshare ESP32-S3-ETH** firmly into `J2` and `J3` on the top of the interposer, verifying the RJ45 Ethernet port faces the **`<- Ethernet`** silkscreen arrow.
-2. Align **`J1`** on the bottom of the interposer with the **`J1` (`2x20`)** header on the **Station G3 Baseboard**, verifying all 40 pins line up with no shifted rows or columns, and press down evenly until seated.
-3. Check the Station G3 baseboard jumpers (`PA-PL1/PL2` and `LNA-P` on by default) and refer to the main [`README.md`](../README.md#flashing-instructions) to flash the firmware.
+<img width="300" alt="PXL_20261113_203229811" src="https://github.com/user-attachments/assets/1223fed8-4858-459a-912f-8a1b3c374122" />
+
+2. Align **`J1`** on the bottom of the interposer with the **`J1` (`2x20`)** header on the **Station G3 Baseboard**, verifying all 40 pins line up with no shifted rows or columns, and press down evenly until seated. Install the 3 screws to secure.
+3. Refer to the main [`README.md`](../README.md#flashing-instructions) to flash the firmware.

@@ -105,6 +105,7 @@ meshtastic --host <DEVICE_IP> --ota-update firmware-station-g3-waveshare-eth-<ve
 
 ## Repository Structure
 
+* [`meshtastic_migration.md`](meshtastic_migration.md) — Step-by-step migration guide for switching from the stock `BQESP32V1M` MCU to the Waveshare module while preserving your configuration.
 * [`hardware/`](hardware/README.md) — KiCad schematic, PCB layout, and Gerber fabrication files for the Station G3 Waveshare ESP32-S3-ETH interposer.
 * [`variants/esp32s3/station-g3-waveshare-eth/`](variants/esp32s3/station-g3-waveshare-eth/) — Custom PlatformIO environment, pin definitions, and fallback `mt-esp32s3-ota.bin`.
 * [`patches/`](patches/) — Firmware patches including [`station-g3-eth-ota.patch`](patches/station-g3-eth-ota.patch) for Static IP + Ethernet NVS OTA handoff.
